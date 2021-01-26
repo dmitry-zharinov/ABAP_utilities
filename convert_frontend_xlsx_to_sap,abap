@@ -1,0 +1,53 @@
+METHOD convert_frontend_xlsx_to_sap.
+
+  DATA: lt_raw TYPE truxs_t_text_data,
+        l_path TYPE localfile,
+        l_err  TYPE string.
+
+  "Запрос имени файла
+  CALL FUNCTION 'WS_FILENAME_GET'
+    EXPORTING
+      def_filename     = ' '
+      mask             = ',excel, *.xls;*.xlsx.'
+      mode             = 'O'
+      title            = 'Выбор файла'(005)
+    IMPORTING
+      filename         = l_path
+    EXCEPTIONS
+      inv_winsys       = 01
+      no_batch         = 02
+      selection_cancel = 03
+      selection_error  = 04.
+
+  IF sy-subrc NE 0.
+* Ошибка загрузки файла
+    MESSAGE e003(ztkmm_0339) INTO l_err.
+    zcx_suod_error=>raise_for_string( i_text = l_err ).
+  ENDIF.
+
+
+  IF strlen( l_path ) > 128.
+    "  Ошибка: Полный путь файла должен быть не больше 128 символов!
+    zcx_suod_error=>raise( EXPORTING i_id = 'ZTK_MTR'  i_number       = 014     ).
+  ENDIF.
+
+
+* Выгрузить данные из файла Excel во внутреннюю SAP-таблицу:
+  CALL FUNCTION 'TEXT_CONVERT_XLS_TO_SAP'
+    EXPORTING
+      i_line_header        = abap_true
+      i_tab_raw_data       = lt_raw
+      i_filename           = l_path
+    TABLES
+*     i_tab_converted_data = lt_raw_file_data
+      i_tab_converted_data = et_data
+    EXCEPTIONS
+      conversion_failed    = 1
+      OTHERS               = 2.
+  IF sy-subrc <> 0.
+*    Ошибка загрузки данных поставщиков из файла
+    MESSAGE e002(ztkmm_0339) INTO l_err.
+    zcx_suod_error=>raise_for_string( i_text = l_err ).
+  ENDIF.
+
+ENDMETHOD.
